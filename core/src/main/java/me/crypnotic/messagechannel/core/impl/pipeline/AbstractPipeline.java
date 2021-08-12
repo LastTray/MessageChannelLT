@@ -1,0 +1,75 @@
+package me.crypnotic.messagechannel.core.impl.pipeline;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
+
+import me.crypnotic.messagechannel.api.pipeline.IPipeline;
+import me.crypnotic.messagechannel.api.pipeline.PipelineMessage;
+import me.crypnotic.messagechannel.core.MessageChannelCore;
+import me.crypnotic.messagechannel.core.impl.PipelineRegistryImpl;
+
+public abstract class AbstractPipeline implements IPipeline {
+
+    protected MessageChannelCore core;
+    protected PipelineRegistryImpl registry;
+    protected String channel;
+    protected final List<Consumer<PipelineMessage>> listeners;
+
+    public AbstractPipeline(MessageChannelCore core, PipelineRegistryImpl registry, String channel) {
+        this.core = core;
+        this.registry = registry;
+        this.channel = channel;
+        this.listeners = new ArrayList<>();
+    }
+
+    public void onReceive(Consumer<PipelineMessage> listener) {
+        this.listeners.add(listener);
+    }
+
+    public void send(PipelineMessage message) {
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            ObjectOutputStream output = new ObjectOutputStream(bytes);
+
+            output.writeUTF(channel);
+            output.writeObject(message.getTarget());
+            output.writeObject(message.getContents());
+
+            output.close();
+            bytes.close();
+
+            core.getRelay().send(message, bytes.toByteArray());
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
+    }
+
+    public void post(PipelineMessage message) {
+        listeners.forEach(listener -> listener.accept(message));
+    }
+
+    @Override
+    public void broadcast(PipelineMessage message) {
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            ObjectOutputStream output = new ObjectOutputStream(bytes);
+
+            output.writeUTF(channel);
+            output.writeObject(message.getTarget());
+            output.writeObject(message.getContents());
+
+            output.close();
+            bytes.close();
+
+            core.getRelay().broadcast(message, bytes.toByteArray());
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
+    }
+}
