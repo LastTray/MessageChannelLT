@@ -71,7 +71,7 @@ public class MessageChannelBukkit extends JavaPlugin implements IRelay {
         .withArguments(
             new EntitySelectorArgument("target", EntitySelectorArgument.EntitySelector.ONE_PLAYER),
             new StringArgument("target plugin"),
-            new ChatComponentArgument("json message")
+            new GreedyStringArgument("json message")
         )
         .executesPlayer((sender, args) -> {
             try {

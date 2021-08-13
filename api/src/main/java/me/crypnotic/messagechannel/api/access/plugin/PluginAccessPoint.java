@@ -27,9 +27,15 @@ public class PluginAccessPoint {
 			var read = message.read(String.class);
 			var object = new JsonParser().parse(read).getAsJsonObject();
 			var point = ofPlugin(object.get("target_plugin").getAsString());
-			System.out.println(point);
 			var request = object.get("message").getAsJsonObject().get("request") == null ? "not-provided" : object.get("message").getAsJsonObject().get("request").getAsString();
-			point.consumers.stream().filter(pair -> pair.getKey() == null || pair.getKey().equals(request)).forEach(pair -> pair.getValue().accept(object.get("target").getAsString(), object.get("message").getAsJsonObject()));
+			// [02:01:15 INFO]: start_duel start_duel true
+			point.consumers.stream().filter(pair -> pair.getKey() == null || pair.getKey().equals(request)).forEach(pair -> {
+				try {
+					pair.getValue().accept(object.get("target").getAsString(), object.get("message").getAsJsonObject());
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			});
 		});
 	}
 	
@@ -51,8 +57,6 @@ public class PluginAccessPoint {
 	}
 	
 	public void sendRequest(String target, JsonObject message) {
-		var pipeline = MessageChannelAPI.getPipelineRegistry().getRegisteredPipeline("built_in_service");
-		
 		var json = new JsonObject();
 		json.addProperty("target", target);
 		json.addProperty("target_plugin", plugin);
