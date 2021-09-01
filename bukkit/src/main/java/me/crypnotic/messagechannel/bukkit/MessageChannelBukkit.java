@@ -44,6 +44,7 @@ import me.crypnotic.messagechannel.api.pipeline.PipelineMessage;
 import me.crypnotic.messagechannel.core.MessageChannelCore;
 
 import java.util.Arrays;
+import java.util.Optional;
 
 public class MessageChannelBukkit extends JavaPlugin implements IRelay {
 
@@ -58,34 +59,27 @@ public class MessageChannelBukkit extends JavaPlugin implements IRelay {
         } catch (MessageChannelException exception) {
             exception.printStackTrace();
         }
-        
-       
+    
+    
+        MessageChannelAPI.getPipelineRegistry().getPluginAccessPoint("builtin").handler("execute_command", (sender, message) -> {
+            Optional.ofNullable(Bukkit.getPlayer(sender)).ifPresent(player -> {
+                if (message.get("console").getAsBoolean()) {
+                    
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), message.get("value").getAsString());
+                } else {
+                    Bukkit.dispatchCommand(player, message.get("value").getAsString());
+                }
+            });
+        });
     }
 
     @Override
     public void onEnable() {
         getServer().getMessenger().registerOutgoingPluginChannel(this, "messagechannel:proxy");
         getServer().getMessenger().registerIncomingPluginChannel(this, "messagechannel:server", (channel, player, data) -> core.getPipelineRegistry().receive(data));
-    
-        new CommandAPICommand("messagechannel")
-        .withArguments(
-            new EntitySelectorArgument("target", EntitySelectorArgument.EntitySelector.ONE_PLAYER),
-            new StringArgument("target plugin"),
-            new GreedyStringArgument("json message")
-        )
-        .executesPlayer((sender, args) -> {
-            try {
-                var target = (Player) args[0];
-                var targetPlugin = (String) args[1];
-                var jsonMessage = new JsonParser().parse((String) args[2]).getAsJsonObject();
-    
-                MessageChannelAPI.getPipelineRegistry().getPluginAccessPoint(targetPlugin).sendRequest(target.getName(), jsonMessage);
-            } catch (Exception e) {
-                Arrays.stream(e.getStackTrace()).map(StackTraceElement::toString).forEach(sender::sendMessage);
-            }
-        })
-        .register();
-    
+        
+        if (!getServer().getBukkitVersion().equals("1.12.2")) new CommandApiInit();
+        
     }
 
     @Override

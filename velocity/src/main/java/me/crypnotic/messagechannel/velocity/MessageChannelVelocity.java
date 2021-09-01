@@ -65,15 +65,6 @@ public class MessageChannelVelocity implements IRelay {
             exception.printStackTrace();
         }
         
-        core.getPipelineRegistry().getPluginAccessPoint("builtin").handler("execute_command", (sender, message) -> {
-            proxy.getPlayer(sender).ifPresent(player -> {
-                if (message.get("console").getAsBoolean()) {
-                    proxy.getCommandManager().executeAsync(proxy.getConsoleCommandSource(), message.get("value").getAsString());
-                } else {
-                    proxy.getCommandManager().executeAsync(player, message.get("value").getAsString());
-                }
-            });
-        });
     }
 
     @Subscribe
@@ -91,7 +82,7 @@ public class MessageChannelVelocity implements IRelay {
                 return server.get().sendPluginMessage(OUTGOING, data);
             }
         }
-        return false;
+        return broadcast(message, data);
     }
 
     @Override

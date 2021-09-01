@@ -1,17 +1,20 @@
 package me.crypnotic.messagechannel.api.access.plugin;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import lombok.var;
 import me.crypnotic.messagechannel.api.MessageChannelAPI;
 import me.crypnotic.messagechannel.api.pipeline.IPipeline;
 import me.crypnotic.messagechannel.api.pipeline.PipelineMessage;
+import me.crypnotic.messagechannel.api.util.JsonObjectBuilder;
 import me.crypnotic.messagechannel.api.util.Pair;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
-import java.util.function.BiConsumer;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.*;
 
 public class PluginAccessPoint {
 	private final static List<PluginAccessPoint> pointHashMap = new ArrayList<>();
@@ -27,14 +30,18 @@ public class PluginAccessPoint {
 			var read = message.read(String.class);
 			var object = new JsonParser().parse(read).getAsJsonObject();
 			var point = ofPlugin(object.get("target_plugin").getAsString());
-			var request = object.get("message").getAsJsonObject().get("request") == null ? "not-provided" : object.get("message").getAsJsonObject().get("request").getAsString();
-			// [02:01:15 INFO]: start_duel start_duel true
+			var jmessage = object.get("message").getAsJsonObject();
+			var request = jmessage.get("request") == null ? "not-provided" : jmessage.get("request").getAsString();
+			
+			if (request.equals(":request_data:answer")) {
+				Optional.ofNullable(point.awaitingData.get(jmessage.get("token").getAsInt())).ifPresent(consumer -> {
+					consumer.accept(object.get("target").getAsString(), jmessage.get("answer"));
+				});
+				return;
+			}
+			
 			point.consumers.stream().filter(pair -> pair.getKey() == null || pair.getKey().equals(request)).forEach(pair -> {
-				try {
-					pair.getValue().accept(object.get("target").getAsString(), object.get("message").getAsJsonObject());
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+				pair.getValue().accept(object.get("target").getAsString(), object.get("message").getAsJsonObject());
 			});
 		});
 	}
@@ -42,9 +49,52 @@ public class PluginAccessPoint {
 	String plugin;
 	List<Pair<String, BiConsumer<String, JsonObject>>> consumers = new ArrayList<>();
 	
+	private final HashMap<Integer, BiConsumer<String, JsonElement>> awaitingData = new HashMap<>();
+	
 	public PluginAccessPoint(String plugin) {
 		this.plugin = plugin;
 		pointHashMap.add(this);
+		
+	}
+	
+	public void dataAnswerHandler(Predicate<JsonObject> predicate, Function<String, JsonElement> answer) {
+		handler(":request_data", (sender, msg) -> {
+			var token = msg.get("token").getAsInt();
+			var data = msg.get("data").getAsJsonObject();
+			if (predicate.test(data)) {
+				sendRequest(sender, JsonObjectBuilder.get().request(":request_data:answer").add("token", token).add("answer", answer.apply(sender)).build());
+			}
+		});
+	}
+	
+	public CompletableFuture<JsonElement> requestData(String sender, JsonObject data) {
+		final int token = ThreadLocalRandom.current().nextInt();
+		
+		sendRequest(sender, JsonObjectBuilder.get().add("request", ":request_data").add("token", token).add("data", data).build());
+		
+		Pair<JsonElement, ?> object = Pair.of(null, null);
+		
+		awaitingData.put(token, (dataSender, json) -> {
+			awaitingData.remove(token);
+			if (sender.equalsIgnoreCase(dataSender)) {
+				synchronized (object) {
+					object.setKey(json);
+					object.notifyAll();
+				}
+			}
+		});
+		
+		return CompletableFuture.supplyAsync(() -> {
+			try {
+				synchronized(object) {
+					object.wait();
+					return object.getKey();
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			return null;
+		}, Executors.newSingleThreadExecutor());
 	}
 	
 	/**
@@ -54,6 +104,10 @@ public class PluginAccessPoint {
 	 */
 	public void handler(String request, BiConsumer<String, JsonObject> consumer) {
 		this.consumers.add(Pair.of(request, consumer));
+	}
+	
+	public void unregisterHandler(String request) {
+		this.consumers.stream().filter(pair -> pair.getKey().equals(request)).forEach(this.consumers::remove);
 	}
 	
 	public void sendRequest(String target, JsonObject message) {

@@ -4,9 +4,9 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<groupId>me.crypnotic.messagechannel</groupId>
+		<groupId>com.lasttray.j8</groupId>
 		<artifactId>messagechannel</artifactId>
-		<version>3.0.0-1</version>
+		<version>3.0.4</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 

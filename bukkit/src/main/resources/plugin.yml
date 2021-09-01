@@ -4,5 +4,5 @@ description: ${project.description}
 main: me.crypnotic.messagechannel.bukkit.MessageChannelBukkit
 author: Crypnotic
 api-version: 1.13
-depend:
+softdepend:
 - CommandAPI
